@@ -2,6 +2,7 @@
 Tool for managing components on GameObjects in Unity.
 Supports add, remove, and set_property operations.
 """
+
 from typing import Annotated, Any, Literal
 
 from fastmcp import Context
@@ -20,37 +21,38 @@ async def manage_components(
     ctx: Context,
     action: Annotated[
         Literal["add", "remove", "set_property"],
-        "Action to perform: add (add component), remove (remove component), set_property (set component property)"
+        "Action to perform: add (add component), remove (remove component), set_property (set component property)",
     ],
     target: Annotated[
-        str | int,
-        "Target GameObject - instance ID (preferred) or name/path"
+        str | int, "Target GameObject - instance ID (preferred) or name/path"
     ],
     component_type: Annotated[
-        str,
-        "Component type name (e.g., 'Rigidbody', 'BoxCollider', 'MyScript')"
+        str, "Component type name (e.g., 'Rigidbody', 'BoxCollider', 'MyScript')"
     ],
     search_method: Annotated[
-        Literal["by_id", "by_name", "by_path"],
-        "How to find the target GameObject"
-    ] | None = None,
+        Literal["by_id", "by_name", "by_path"], "How to find the target GameObject"
+    ]
+    | None = None,
     # For set_property action - single property
-    property: Annotated[str,
-                        "Property name to set (for set_property action)"] | None = None,
-    value: Annotated[str | int | float | bool | dict | list ,
-                     "Value to set (for set_property action)"] | None = None,
+    property: Annotated[str, "Property name to set (for set_property action)"]
+    | None = None,
+    value: Annotated[
+        str | int | float | bool | dict | list, "Value to set (for set_property action)"
+    ]
+    | None = None,
     # For add/set_property - multiple properties
     properties: Annotated[
         dict[str, Any],
-        "Dictionary of property names to values. Example: {\"mass\": 5.0, \"useGravity\": false}"
-    ] | None = None,
+        'Dictionary of property names to values. Example: {"mass": 5.0, "useGravity": false}',
+    ]
+    | None = None,
 ) -> dict[str, Any]:
     """
     Manage components on GameObjects.
 
     Actions:
     - add: Add a new component to a GameObject
-    - remove: Remove a component from a GameObject  
+    - remove: Remove a component from a GameObject
     - set_property: Set one or more properties on a component
 
     Examples:
@@ -68,19 +70,19 @@ async def manage_components(
     if not action:
         return {
             "success": False,
-            "message": "Missing required parameter 'action'. Valid actions: add, remove, set_property"
+            "message": "Missing required parameter 'action'. Valid actions: add, remove, set_property",
         }
 
     if not target:
         return {
             "success": False,
-            "message": "Missing required parameter 'target'. Specify GameObject instance ID or name."
+            "message": "Missing required parameter 'target'. Specify GameObject instance ID or name.",
         }
 
     if not component_type:
         return {
             "success": False,
-            "message": "Missing required parameter 'component_type'. Specify the component type name."
+            "message": "Missing required parameter 'component_type'. Specify the component type name.",
         }
 
     # --- Normalize properties with detailed error handling ---
@@ -89,8 +91,15 @@ async def manage_components(
         return {"success": False, "message": props_error}
 
     # --- Validate value parameter for serialization issues ---
-    if value is not None and isinstance(value, str) and value in ("[object Object]", "undefined"):
-        return {"success": False, "message": f"value received invalid input: '{value}'. Expected an actual value."}
+    if (
+        value is not None
+        and isinstance(value, str)
+        and value in ("[object Object]", "undefined")
+    ):
+        return {
+            "success": False,
+            "message": f"value received invalid input: '{value}'. Expected an actual value.",
+        }
 
     try:
         params = {
@@ -119,13 +128,36 @@ async def manage_components(
             params,
         )
 
+        if (
+            isinstance(response, dict)
+            and response.get("success")
+            and action in ("add", "set_property")
+        ):
+            try:
+                from services.tools.read_console import read_console
+
+                logs = await read_console(ctx, count="5", types=["error", "warning"])
+                if (
+                    isinstance(logs, dict)
+                    and logs.get("success")
+                    and logs.get("data", {}).get("messages")
+                ):
+                    response["recent_logs"] = logs["data"]["messages"]
+            except Exception:
+                pass
+
         if isinstance(response, dict) and response.get("success"):
             return {
                 "success": True,
                 "message": response.get("message", f"Component {action} successful."),
-                "data": response.get("data")
+                "data": response.get("data"),
+                "recent_logs": response.get("recent_logs"),
             }
-        return response if isinstance(response, dict) else {"success": False, "message": str(response)}
+        return (
+            response
+            if isinstance(response, dict)
+            else {"success": False, "message": str(response)}
+        )
 
     except Exception as e:
         return {"success": False, "message": f"Error managing component: {e!s}"}
