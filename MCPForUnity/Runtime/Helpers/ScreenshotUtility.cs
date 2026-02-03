@@ -130,6 +130,11 @@ namespace MCPForUnity.Runtime.Helpers
         /// </summary>
         public static ScreenshotCaptureResult CaptureFromCameraToAssetsFolder(Camera camera, string fileName = null, int superSize = 1, bool ensureUniqueFileName = true)
         {
+            return CaptureRectFromCameraToAssetsFolder(camera, new Rect(0, 0, Screen.width, Screen.height), fileName, superSize, ensureUniqueFileName);
+        }
+
+        public static ScreenshotCaptureResult CaptureRectFromCameraToAssetsFolder(Camera camera, Rect screenRect, string fileName = null, int superSize = 1, bool ensureUniqueFileName = true)
+        {
             if (camera == null)
             {
                 throw new ArgumentNullException(nameof(camera));
@@ -138,14 +143,15 @@ namespace MCPForUnity.Runtime.Helpers
             ScreenshotCaptureResult result = PrepareCaptureResult(fileName, superSize, ensureUniqueFileName, isAsync: false);
             int size = result.SuperSize;
 
-            int width = Mathf.Max(1, camera.pixelWidth > 0 ? camera.pixelWidth : Screen.width);
-            int height = Mathf.Max(1, camera.pixelHeight > 0 ? camera.pixelHeight : Screen.height);
-            width *= size;
-            height *= size;
+            int width = Mathf.RoundToInt(screenRect.width * size);
+            int height = Mathf.RoundToInt(screenRect.height * size);
+            
+            int screenWidth = Mathf.Max(1, camera.pixelWidth > 0 ? camera.pixelWidth : Screen.width);
+            int screenHeight = Mathf.Max(1, camera.pixelHeight > 0 ? camera.pixelHeight : Screen.height);
 
             RenderTexture prevRT = camera.targetTexture;
             RenderTexture prevActive = RenderTexture.active;
-            var rt = RenderTexture.GetTemporary(width, height, 24, RenderTextureFormat.ARGB32);
+            var rt = RenderTexture.GetTemporary(screenWidth * size, screenHeight * size, 24, RenderTextureFormat.ARGB32);
             Texture2D tex = null;
             try
             {
@@ -154,7 +160,7 @@ namespace MCPForUnity.Runtime.Helpers
 
                 RenderTexture.active = rt;
                 tex = new Texture2D(width, height, TextureFormat.RGBA32, false);
-                tex.ReadPixels(new Rect(0, 0, width, height), 0, 0);
+                tex.ReadPixels(new Rect(screenRect.x * size, screenRect.y * size, width, height), 0, 0);
                 tex.Apply();
 
                 byte[] png = tex.EncodeToPNG();
