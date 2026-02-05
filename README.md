@@ -1,9 +1,24 @@
 <img width="676" height="380" alt="MCP for Unity" src="docs/images/logo.png" />
 
+# MCP for Unity (Custom Fork)
+
+> [!IMPORTANT]
+> This is a **custom fork** of the original [CoplayDev/unity-mcp](https://github.com/CoplayDev/unity-mcp).
+> It includes several enhancements for better multi-project support and server management.
+
+### ✨ Key Fork Enhancements
+
+*   **Project-Scoped Discovery**: Automatically detects and targets the Unity instance within the current project directory (using `.unity-mcp` folder), avoiding collisions when multiple Unity projects are open.
+*   **Custom Logging**: Added `--logpath` parameter to the Python server to allow specifying custom log file locations.
+*   **Manual Server Management**: Includes a Unity Editor menu (`Tools > Start MCP Server`) to easily launch the HTTP server with project-specific settings directly from the editor.
+*   **Environment Overrides**: Full support for `UNITY_MCP_STATUS_DIR` and `UNITY_MCP_LOG_PATH` environment variables for flexible deployment.
+
+---
+
 | [English](README.md) | [简体中文](docs/i18n/README-zh.md) |
 |----------------------|---------------------------------|
 
-#### Proudly sponsored and maintained by [Coplay](https://www.coplay.dev/?ref=unity-mcp) -- the best AI assistant for Unity.
+#### Original project proudly sponsored and maintained by [Coplay](https://www.coplay.dev/?ref=unity-mcp) -- the best AI assistant for Unity.
 
 [![Discord](https://img.shields.io/badge/discord-join-red.svg?logo=discord&logoColor=white)](https://discord.gg/y4p8KfzrN4)
 [![](https://img.shields.io/badge/Website-Visit-purple)](https://www.coplay.dev/?ref=unity-mcp)
@@ -179,6 +194,10 @@ For **Strict** validation that catches undefined namespaces, types, and methods:
 * **Unity Bridge Not Connecting:** Check `Window > MCP for Unity` status, restart Unity
 * **Server Not Starting:** Verify `uv --version` works, check the terminal for errors
 * **Client Not Connecting:** Ensure the HTTP server is running and the URL matches your config
+
+* **Multiple projects / wrong Unity instance:** MCP for Unity uses a status/port directory for discovery.
+  By default it prefers a project-scoped directory when possible (e.g. `<ProjectRoot>/Library/unity-mcp`).
+  You can override the location by setting `UNITY_MCP_STATUS_DIR` for both the Unity Editor process and the server process.
 
 **Detailed setup guides:**
 * [Fix Unity MCP and Cursor, VSCode & Windsurf](https://github.com/CoplayDev/unity-mcp/wiki/1.-Fix-Unity-MCP-and-Cursor,-VSCode-&-Windsurf) — uv/Python installation, PATH issues
