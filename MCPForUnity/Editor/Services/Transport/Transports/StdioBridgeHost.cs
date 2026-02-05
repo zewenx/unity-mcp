@@ -430,11 +430,7 @@ namespace MCPForUnity.Editor.Services.Transport.Transports
 
             try
             {
-                string dir = Environment.GetEnvironmentVariable("UNITY_MCP_STATUS_DIR");
-                if (string.IsNullOrWhiteSpace(dir))
-                {
-                    dir = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.UserProfile), ".unity-mcp");
-                }
+                string dir = ResolveStatusDir();
                 string statusFile = Path.Combine(dir, $"unity-mcp-status-{ComputeProjectHash(Application.dataPath)}.json");
                 if (File.Exists(statusFile))
                 {
@@ -987,11 +983,7 @@ namespace MCPForUnity.Editor.Services.Transport.Transports
         {
             try
             {
-                string dir = Environment.GetEnvironmentVariable("UNITY_MCP_STATUS_DIR");
-                if (string.IsNullOrWhiteSpace(dir))
-                {
-                    dir = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.UserProfile), ".unity-mcp");
-                }
+                string dir = ResolveStatusDir();
                 Directory.CreateDirectory(dir);
                 string filePath = Path.Combine(dir, $"unity-mcp-status-{ComputeProjectHash(Application.dataPath)}.json");
 
@@ -1030,6 +1022,29 @@ namespace MCPForUnity.Editor.Services.Transport.Transports
             }
             catch (Exception)
             {
+            }
+        }
+
+        private static string ResolveStatusDir()
+        {
+            // Allow callers to scope status files per-project.
+            string dir = Environment.GetEnvironmentVariable("UNITY_MCP_STATUS_DIR");
+            if (!string.IsNullOrWhiteSpace(dir))
+            {
+                return dir;
+            }
+
+            // Default to a project-scoped directory to avoid cross-project collisions.
+            // Application.dataPath points to: <ProjectRoot>/Assets
+            try
+            {
+                string projectRoot = Path.GetFullPath(Path.Combine(Application.dataPath, ".."));
+                return Path.Combine(projectRoot, ".unity-mcp");
+            }
+            catch
+            {
+                // Last-resort fallback.
+                return Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.UserProfile), ".unity-mcp");
             }
         }
 

@@ -311,7 +311,26 @@ namespace MCPForUnity.Editor.Helpers
 
         private static string GetRegistryDirectory()
         {
-            return Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.UserProfile), ".unity-mcp");
+            // Allow callers (including the Python MCP server) to scope status/port files per-project
+            // by setting UNITY_MCP_STATUS_DIR.
+            string dir = System.Environment.GetEnvironmentVariable("UNITY_MCP_STATUS_DIR");
+            if (!string.IsNullOrWhiteSpace(dir))
+            {
+                return dir;
+            }
+
+            // Default to a project-scoped directory to avoid cross-project collisions.
+            // Application.dataPath points to: <ProjectRoot>/Assets
+            try
+            {
+                string projectRoot = Path.GetFullPath(Path.Combine(Application.dataPath, ".."));
+                return Path.Combine(projectRoot, ".unity-mcp");
+            }
+            catch
+            {
+                // Last-resort fallback.
+                return Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.UserProfile), ".unity-mcp");
+            }
         }
 
         private static string GetRegistryFilePath()
