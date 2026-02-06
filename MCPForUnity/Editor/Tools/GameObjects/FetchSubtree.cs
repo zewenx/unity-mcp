@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Linq;
 using MCPForUnity.Editor.Helpers;
 using Newtonsoft.Json.Linq;
 using UnityEngine;
@@ -31,30 +32,15 @@ namespace MCPForUnity.Editor.Tools.GameObjects
 
             try
             {
-                // Optional semantic filtering: include_components
-                // If provided, only nodes matching these component types (or their ancestors) are returned.
-                List<string> includeComponents = null;
+                var includeComponents = new List<string>();
                 var rawInclude = p.GetRaw("include_components") as JArray;
-                if (rawInclude != null && rawInclude.Count > 0)
+                if (rawInclude != null)
                 {
-                    includeComponents = new List<string>(rawInclude.Count);
-                    foreach (var token in rawInclude)
-                    {
-                        if (token == null) continue;
-                        var value = token.ToString();
-                        if (!string.IsNullOrWhiteSpace(value))
-                        {
-                            includeComponents.Add(value);
-                        }
-                    }
-
-                    if (includeComponents.Count == 0)
-                    {
-                        includeComponents = null;
-                    }
+                    includeComponents = rawInclude.Select(x => x.ToString()).ToList();
                 }
 
-                return new SuccessResponse("Fetched subtree", GetNodeData(root, 0, maxDepth, includeInactive, includeComponents, out _));
+                bool hasFilter = includeComponents.Count > 0;
+                return new SuccessResponse("Fetched subtree", GetNodeData(root, 0, maxDepth, includeInactive, hasFilter ? includeComponents : null, out _));
             }
             catch (Exception ex)
             {
