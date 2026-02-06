@@ -67,15 +67,14 @@ class PluginHub(WebSocketEndpoint):
     # Server-side ping interval (seconds) - how often to send pings to Unity
     PING_INTERVAL = 10
     # Max time (seconds) to wait for pong before considering connection dead
-    PING_TIMEOUT = 20
+    PING_TIMEOUT = 40
     # Timeout (seconds) for fast-fail commands like ping/read_console/get_editor_state.
     # Keep short so MCP clients aren't blocked during Unity compilation/reload/unfocused throttling.
     FAST_FAIL_TIMEOUT = 2.0
     # Fast-path commands should never block the client for long; return a retry hint instead.
     # This helps avoid the Cursor-side ~30s tool-call timeout when Unity is compiling/reloading
     # or is throttled while unfocused.
-    _FAST_FAIL_COMMANDS: set[str] = {
-        "read_console", "get_editor_state", "ping"}
+    _FAST_FAIL_COMMANDS: set[str] = {"read_console", "get_editor_state", "ping"}
 
     _registry: PluginRegistry | None = None
     _connections: dict[str, WebSocket] = {}
@@ -108,7 +107,8 @@ class PluginHub(WebSocketEndpoint):
         if config.http_remote_hosted:
             if not ApiKeyService.is_initialized():
                 logger.debug(
-                    "WebSocket connection rejected: auth service not initialized")
+                    "WebSocket connection rejected: auth service not initialized"
+                )
                 await websocket.close(code=1013, reason="Try again later")
                 return
 
@@ -129,7 +129,8 @@ class PluginHub(WebSocketEndpoint):
                     for indicator in ("unavailable", "timeout", "service error")
                 ):
                     logger.debug(
-                        "WebSocket connection rejected: auth service unavailable")
+                        "WebSocket connection rejected: auth service unavailable"
+                    )
                     await websocket.close(code=1013, reason="Try again later")
                     return
 
@@ -140,7 +141,8 @@ class PluginHub(WebSocketEndpoint):
             # Both valid and user_id must be present to accept
             if not result.user_id:
                 logger.debug(
-                    "WebSocket connection rejected: validated key missing user_id")
+                    "WebSocket connection rejected: validated key missing user_id"
+                )
                 await websocket.close(code=4403, reason="Invalid API key")
                 return
 
@@ -165,7 +167,9 @@ class PluginHub(WebSocketEndpoint):
             if message_type == "register":
                 await self._handle_register(websocket, RegisterMessage(**data))
             elif message_type == "register_tools":
-                await self._handle_register_tools(websocket, RegisterToolsMessage(**data))
+                await self._handle_register_tools(
+                    websocket, RegisterToolsMessage(**data)
+                )
             elif message_type == "pong":
                 await self._handle_pong(PongMessage(**data))
             elif message_type == "command_result":
@@ -182,7 +186,8 @@ class PluginHub(WebSocketEndpoint):
             return
         async with lock:
             session_id = next(
-                (sid for sid, ws in cls._connections.items() if ws is websocket), None)
+                (sid for sid, ws in cls._connections.items() if ws is websocket), None
+            )
             if session_id:
                 cls._connections.pop(session_id, None)
                 # Stop the ping loop for this session
@@ -198,11 +203,12 @@ class PluginHub(WebSocketEndpoint):
                     if entry.get("session_id") == session_id
                 ]
                 if pending_ids:
-                    logger.debug(f"Cancelling {len(pending_ids)} pending commands for disconnected session")
+                    logger.debug(
+                        f"Cancelling {len(pending_ids)} pending commands for disconnected session"
+                    )
                 for command_id in pending_ids:
                     entry = cls._pending.get(command_id)
-                    future = entry.get("future") if isinstance(
-                        entry, dict) else None
+                    future = entry.get("future") if isinstance(entry, dict) else None
                     if future and not future.done():
                         future.set_exception(
                             PluginDisconnectedError(
@@ -211,14 +217,15 @@ class PluginHub(WebSocketEndpoint):
                         )
                 if cls._registry:
                     await cls._registry.unregister(session_id)
-                logger.info(
-                    f"Plugin session {session_id} disconnected ({close_code})")
+                logger.info(f"Plugin session {session_id} disconnected ({close_code})")
 
     # ------------------------------------------------------------------
     # Public API
     # ------------------------------------------------------------------
     @classmethod
-    async def send_command(cls, session_id: str, command_type: str, params: dict[str, Any]) -> dict[str, Any]:
+    async def send_command(
+        cls, session_id: str, command_type: str, params: dict[str, Any]
+    ) -> dict[str, Any]:
         websocket = await cls._get_connection(session_id)
         command_id = str(uuid.uuid4())
         future: asyncio.Future = asyncio.get_running_loop().create_future()
@@ -259,10 +266,8 @@ class PluginHub(WebSocketEndpoint):
 
         async with lock:
             if command_id in cls._pending:
-                raise RuntimeError(
-                    f"Duplicate command id generated: {command_id}")
-            cls._pending[command_id] = {
-                "future": future, "session_id": session_id}
+                raise RuntimeError(f"Duplicate command id generated: {command_id}")
+            cls._pending[command_id] = {"future": future, "session_id": session_id}
 
         try:
             msg = ExecuteCommandMessage(
@@ -282,7 +287,9 @@ class PluginHub(WebSocketEndpoint):
                 result = await asyncio.wait_for(future, timeout=server_wait_s)
                 return result
             except PluginDisconnectedError as exc:
-                return MCPResponse(success=False, error=str(exc), hint="retry").model_dump()
+                return MCPResponse(
+                    success=False, error=str(exc), hint="retry"
+                ).model_dump()
             except asyncio.TimeoutError:
                 if command_type in cls._FAST_FAIL_COMMANDS:
                     return MCPResponse(
@@ -352,7 +359,9 @@ class PluginHub(WebSocketEndpoint):
     # ------------------------------------------------------------------
     # Internal helpers
     # ------------------------------------------------------------------
-    async def _handle_register(self, websocket: WebSocket, payload: RegisterMessage) -> None:
+    async def _handle_register(
+        self, websocket: WebSocket, payload: RegisterMessage
+    ) -> None:
         cls = type(self)
         registry = cls._registry
         lock = cls._lock
@@ -367,8 +376,7 @@ class PluginHub(WebSocketEndpoint):
 
         if not project_hash:
             await websocket.close(code=4400)
-            raise ValueError(
-                "Plugin registration missing project_hash")
+            raise ValueError("Plugin registration missing project_hash")
 
         # Get user_id from websocket state (set during API key validation)
         user_id = getattr(websocket.state, "user_id", None)
@@ -378,7 +386,14 @@ class PluginHub(WebSocketEndpoint):
         response = RegisteredMessage(session_id=session_id)
         await websocket.send_json(response.model_dump())
 
-        session = await registry.register(session_id, project_name, project_hash, unity_version, project_path, user_id=user_id)
+        session = await registry.register(
+            session_id,
+            project_name,
+            project_hash,
+            unity_version,
+            project_path,
+            user_id=user_id,
+        )
         async with lock:
             cls._connections[session.session_id] = websocket
             # Initialize last pong time and start ping loop for this session
@@ -392,11 +407,15 @@ class PluginHub(WebSocketEndpoint):
             cls._ping_tasks[session_id] = ping_task
 
         if user_id:
-            logger.info(f"Plugin registered: {project_name} ({project_hash}) for user {user_id}")
+            logger.info(
+                f"Plugin registered: {project_name} ({project_hash}) for user {user_id}"
+            )
         else:
             logger.info(f"Plugin registered: {project_name} ({project_hash})")
 
-    async def _handle_register_tools(self, websocket: WebSocket, payload: RegisterToolsMessage) -> None:
+    async def _handle_register_tools(
+        self, websocket: WebSocket, payload: RegisterToolsMessage
+    ) -> None:
         cls = type(self)
         registry = cls._registry
         lock = cls._lock
@@ -406,15 +425,15 @@ class PluginHub(WebSocketEndpoint):
         # Find session_id for this websocket
         async with lock:
             session_id = next(
-                (sid for sid, ws in cls._connections.items() if ws is websocket), None)
+                (sid for sid, ws in cls._connections.items() if ws is websocket), None
+            )
 
         if not session_id:
             logger.warning("Received register_tools from unknown connection")
             return
 
         await registry.register_tools_for_session(session_id, payload.tools)
-        logger.info(
-            f"Registered {len(payload.tools)} tools for session {session_id}")
+        logger.info(f"Registered {len(payload.tools)} tools for session {session_id}")
 
         try:
             from services.custom_tool_service import CustomToolService
@@ -484,7 +503,9 @@ class PluginHub(WebSocketEndpoint):
                     break
                 async with lock:
                     if session_id not in cls._connections:
-                        logger.debug(f"[Ping] Session {session_id} no longer in connections, stopping ping loop")
+                        logger.debug(
+                            f"[Ping] Session {session_id} no longer in connections, stopping ping loop"
+                        )
                         break
                     # Read last pong time under lock for consistency
                     last_pong = cls._last_pong.get(session_id, 0)
@@ -499,7 +520,9 @@ class PluginHub(WebSocketEndpoint):
                     try:
                         await websocket.close(code=1001)  # Going away
                     except Exception as close_ex:
-                        logger.debug(f"[Ping] Error closing stale websocket: {close_ex}")
+                        logger.debug(
+                            f"[Ping] Error closing stale websocket: {close_ex}"
+                        )
                     break
 
                 # Send a ping to the client
@@ -541,7 +564,9 @@ class PluginHub(WebSocketEndpoint):
     # Session resolution helpers
     # ------------------------------------------------------------------
     @classmethod
-    async def _resolve_session_id(cls, unity_instance: str | None, user_id: str | None = None) -> str:
+    async def _resolve_session_id(
+        cls, unity_instance: str | None, user_id: str | None = None
+    ) -> str:
         """Resolve a project hash (Unity instance id) to an active plugin session.
 
         During Unity domain reloads the plugin's WebSocket session is torn down
@@ -570,13 +595,15 @@ class PluginHub(WebSocketEndpoint):
         # Configurable via: UNITY_MCP_SESSION_RESOLVE_MAX_WAIT_S (default: 20.0, max: 20.0)
         try:
             max_wait_s = float(
-                os.environ.get("UNITY_MCP_SESSION_RESOLVE_MAX_WAIT_S", "20.0"))
+                os.environ.get("UNITY_MCP_SESSION_RESOLVE_MAX_WAIT_S", "20.0")
+            )
         except ValueError as e:
-            raw_val = os.environ.get(
-                "UNITY_MCP_SESSION_RESOLVE_MAX_WAIT_S", "20.0")
+            raw_val = os.environ.get("UNITY_MCP_SESSION_RESOLVE_MAX_WAIT_S", "20.0")
             logger.warning(
                 "Invalid UNITY_MCP_SESSION_RESOLVE_MAX_WAIT_S=%r, using default 20.0: %s",
-                raw_val, e)
+                raw_val,
+                e,
+            )
             max_wait_s = 20.0
         # Clamp to [0, 20] to prevent misconfiguration from causing excessive waits
         max_wait_s = max(0.0, min(max_wait_s, 20.0))
@@ -598,7 +625,9 @@ class PluginHub(WebSocketEndpoint):
             if target_hash:
                 # In remote-hosted mode with user_id, use user-scoped lookup
                 if config.http_remote_hosted and user_id:
-                    session_id = await cls._registry.get_session_id_by_hash(target_hash, user_id)
+                    session_id = await cls._registry.get_session_id_by_hash(
+                        target_hash, user_id
+                    )
                     sessions = await cls._registry.list_sessions(user_id=user_id)
                 else:
                     session_id = await cls._registry.get_session_id_by_hash(target_hash)
@@ -619,7 +648,12 @@ class PluginHub(WebSocketEndpoint):
             return None, count, explicit_required
 
         session_id, session_count, explicit_required = await _try_once()
-        if session_id is None and explicit_required and not target_hash and session_count > 0:
+        if (
+            session_id is None
+            and explicit_required
+            and not target_hash
+            and session_count > 0
+        ):
             raise InstanceSelectionRequiredError()
         deadline = time.monotonic() + max_wait_s
         wait_started = None
@@ -629,8 +663,14 @@ class PluginHub(WebSocketEndpoint):
         while session_id is None and time.monotonic() < deadline:
             if not target_hash and session_count > 1:
                 raise InstanceSelectionRequiredError(
-                    InstanceSelectionRequiredError._MULTIPLE_INSTANCES)
-            if session_id is None and explicit_required and not target_hash and session_count > 0:
+                    InstanceSelectionRequiredError._MULTIPLE_INSTANCES
+                )
+            if (
+                session_id is None
+                and explicit_required
+                and not target_hash
+                and session_count > 0
+            ):
                 raise InstanceSelectionRequiredError()
             if wait_started is None:
                 wait_started = time.monotonic()
@@ -650,9 +690,15 @@ class PluginHub(WebSocketEndpoint):
             )
         if session_id is None and not target_hash and session_count > 1:
             raise InstanceSelectionRequiredError(
-                InstanceSelectionRequiredError._MULTIPLE_INSTANCES)
+                InstanceSelectionRequiredError._MULTIPLE_INSTANCES
+            )
 
-        if session_id is None and explicit_required and not target_hash and session_count > 0:
+        if (
+            session_id is None
+            and explicit_required
+            and not target_hash
+            and session_count > 0
+        ):
             raise InstanceSelectionRequiredError()
 
         if session_id is None:
@@ -663,8 +709,7 @@ class PluginHub(WebSocketEndpoint):
             )
             # At this point we've given the plugin ample time to reconnect; surface
             # a clear error so the client can prompt the user to open Unity.
-            raise NoUnitySessionError(
-                "No Unity plugins are currently connected")
+            raise NoUnitySessionError("No Unity plugins are currently connected")
 
         return session_id
 
@@ -706,14 +751,16 @@ class PluginHub(WebSocketEndpoint):
         # register_tools (which can be delayed by EditorApplication.delayCall).
         if command_type in cls._FAST_FAIL_COMMANDS and command_type != "ping":
             try:
-                max_wait_s = float(os.environ.get(
-                    "UNITY_MCP_SESSION_READY_WAIT_SECONDS", "6"))
+                max_wait_s = float(
+                    os.environ.get("UNITY_MCP_SESSION_READY_WAIT_SECONDS", "6")
+                )
             except ValueError as e:
-                raw_val = os.environ.get(
-                    "UNITY_MCP_SESSION_READY_WAIT_SECONDS", "6")
+                raw_val = os.environ.get("UNITY_MCP_SESSION_READY_WAIT_SECONDS", "6")
                 logger.warning(
                     "Invalid UNITY_MCP_SESSION_READY_WAIT_SECONDS=%r, using default 6.0: %s",
-                    raw_val, e)
+                    raw_val,
+                    e,
+                )
                 max_wait_s = 6.0
             max_wait_s = max(0.0, min(max_wait_s, 20.0))
             if max_wait_s > 0:
@@ -726,8 +773,11 @@ class PluginHub(WebSocketEndpoint):
 
                     # The Unity-side dispatcher responds with {status:"success", result:{message:"pong"}}
                     if isinstance(probe, dict) and probe.get("status") == "success":
-                        result = probe.get("result") if isinstance(
-                            probe.get("result"), dict) else {}
+                        result = (
+                            probe.get("result")
+                            if isinstance(probe.get("result"), dict)
+                            else {}
+                        )
                         if result.get("message") == "pong":
                             break
                     await asyncio.sleep(0.1)
