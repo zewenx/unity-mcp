@@ -93,6 +93,7 @@ namespace MCPForUnity.Editor.Services
         public static bool ClearStuckJob()
         {
             bool cleared = false;
+            bool clearedRunStatus = false;
             lock (LockObj)
             {
                 if (string.IsNullOrEmpty(_currentJobId))
@@ -109,9 +110,16 @@ namespace MCPForUnity.Editor.Services
                     job.LastUpdateUnixMs = now;
                     McpLog.Warn($"[TestJobManager] Manually cleared stuck job {_currentJobId}");
                     cleared = true;
+                    clearedRunStatus = true;
                 }
 
                 _currentJobId = null;
+            }
+
+            // Clearing a stuck job should also unblock tool gating.
+            if (clearedRunStatus)
+            {
+                TestRunStatus.MarkFinished();
             }
             PersistToSessionState(force: true);
             return cleared;
@@ -478,6 +486,7 @@ namespace MCPForUnity.Editor.Services
 
             TestJob jobToReturn = null;
             bool shouldPersist = false;
+            bool shouldClearRunStatus = false;
             lock (LockObj)
             {
                 if (!Jobs.TryGetValue(jobId, out var job))
@@ -501,6 +510,27 @@ namespace MCPForUnity.Editor.Services
                         if (_currentJobId == jobId)
                         {
                             _currentJobId = null;
+                            shouldClearRunStatus = true;
+                        }
+                        shouldPersist = true;
+                    }
+                }
+
+                // Also detect jobs that *did* start but then got stuck (e.g., Unity Test Framework PlayModeRunTask NRE).
+                if (job.Status == TestJobStatus.Running && job.TotalTests != null)
+                {
+                    long now = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
+                    if (!EditorApplication.isCompiling && !EditorApplication.isUpdating && now - job.LastUpdateUnixMs > StuckThresholdMs)
+                    {
+                        McpLog.Warn($"[TestJobManager] Job {jobId} appears stuck (no update for {(now - job.LastUpdateUnixMs) / 1000}s), auto-failing");
+                        job.Status = TestJobStatus.Failed;
+                        job.Error = "Test job stuck (no progress updates within threshold)";
+                        job.FinishedUnixMs = now;
+                        job.LastUpdateUnixMs = now;
+                        if (_currentJobId == jobId)
+                        {
+                            _currentJobId = null;
+                            shouldClearRunStatus = true;
                         }
                         shouldPersist = true;
                     }
@@ -512,6 +542,12 @@ namespace MCPForUnity.Editor.Services
             if (shouldPersist)
             {
                 PersistToSessionState(force: true);
+            }
+
+            if (shouldClearRunStatus)
+            {
+                // This job never reached RunStarted/RunFinished callbacks; clear the global run gate.
+                TestRunStatus.MarkFinished();
             }
             return jobToReturn;
         }
@@ -670,4 +706,3 @@ namespace MCPForUnity.Editor.Services
         }
     }
 }
-

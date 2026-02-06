@@ -24,6 +24,12 @@ namespace MCPForUnity.Editor.Tools
                 if (ParamCoercion.CoerceBool(@params?["clear_stuck"], false))
                 {
                     bool wasCleared = TestJobManager.ClearStuckJob();
+
+                    // Also clear the global run gate to unblock other tools.
+                    if (wasCleared)
+                    {
+                        TestRunStatus.MarkFinished();
+                    }
                     return Task.FromResult<object>(new SuccessResponse(
                         wasCleared ? "Stuck job cleared." : "No running job to clear.",
                         new { cleared = wasCleared }
