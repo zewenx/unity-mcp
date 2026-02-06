@@ -7,6 +7,9 @@ using UnityEngine;
 
 namespace MCPForUnity.Editor.Tools.GameObjects
 {
+    /// <summary>
+    /// Tool for checking screen-space overlaps between direct child RectTransforms.
+    /// </summary>
     [McpForUnityTool("check_layout")]
     public static class CheckLayout
     {
@@ -70,6 +73,11 @@ namespace MCPForUnity.Editor.Tools.GameObjects
                 }
 
                 if (!LayoutUtility.TryGetScreenRect(rectTransform, out Rect rect))
+                {
+                    continue;
+                }
+
+                if (rect.width <= 0f || rect.height <= 0f)
                 {
                     continue;
                 }
