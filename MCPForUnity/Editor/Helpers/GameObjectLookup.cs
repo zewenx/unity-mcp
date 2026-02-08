@@ -298,11 +298,49 @@ namespace MCPForUnity.Editor.Helpers
                 yield break;
 
             var rootObjects = scene.GetRootGameObjects();
+            var yielded = new HashSet<int>();
             foreach (var root in rootObjects)
             {
                 foreach (var go in GetObjectAndDescendants(root, includeInactive))
                 {
-                    yield return go;
+                    if (yielded.Add(go.GetInstanceID()))
+                    {
+                        yield return go;
+                    }
+                }
+            }
+
+            foreach (var root in GetDontDestroyOnLoadRootObjects())
+            {
+                foreach (var go in GetObjectAndDescendants(root, includeInactive))
+                {
+                    if (yielded.Add(go.GetInstanceID()))
+                    {
+                        yield return go;
+                    }
+                }
+            }
+        }
+
+        private static IEnumerable<GameObject> GetDontDestroyOnLoadRootObjects()
+        {
+            var transforms = UnityEngine.Resources.FindObjectsOfTypeAll<Transform>();
+            foreach (var transform in transforms)
+            {
+                if (transform == null || transform.parent != null)
+                {
+                    continue;
+                }
+
+                var gameObject = transform.gameObject;
+                if (gameObject == null)
+                {
+                    continue;
+                }
+
+                if (gameObject.scene.name == "DontDestroyOnLoad")
+                {
+                    yield return gameObject;
                 }
             }
         }
@@ -367,4 +405,3 @@ namespace MCPForUnity.Editor.Helpers
         }
     }
 }
-

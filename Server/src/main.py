@@ -1,4 +1,5 @@
 from starlette.requests import Request
+
 from transport.unity_instance_middleware import (
     UnityInstanceMiddleware,
     get_unity_instance_middleware,
@@ -65,6 +66,16 @@ except Exception:
 
 from fastmcp import FastMCP
 from logging.handlers import RotatingFileHandler
+
+# Apply Google Function Calling schema compatibility patch
+# Must be done AFTER FastMCP is imported but BEFORE tools are registered
+# Set UNITY_MCP_DISABLE_SCHEMA_PATCH=1 to disable this patch
+try:
+    from services.schema_patch import apply_schema_patch
+
+    apply_schema_patch()
+except Exception:
+    pass  # Fail silently - patch is optional enhancement
 
 
 class WindowsSafeRotatingFileHandler(RotatingFileHandler):
